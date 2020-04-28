@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Author</title>
+</head>
+<body>
+<input type = "text" id = "firstName_input" placeholder="First Name">
+<input type = "text" id = "lastName_input" placeholder="Last Name">
+<input type = "number" id = "age_input" min = "0" placeholder="Age">
+<input type = "file" id = "image_input">
+
+<button id="send-btn">Send</button>
+
+<table>
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>Image</th>
+        <th>First Name</th>
+        <th>Last Name</th>
+        <th>Age</th>
+        <th>Actions</th>
+    </tr>
+    </thead>
+    <tbody id = "authors_table"></tbody>
+</table>
+
+<script>
+    const getBase64FromFile =(file) => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
+        });
+    };
+
+    const API_URL = 'http://localhost:8080';
+    const firstNameInput = document.getElementById("firstName_input");
+    const lastNameInput = document.getElementById("lastName_input");
+    const ageInput = document.getElementById("age_input");
+    const imageInput = document.getElementById("image_input");
+    const sendBtn = document.getElementById("send-btn");
+    const authorsTable = document.getElementById("authors_table");
+
+    const setActionOnUpdateButtonClick = () => {
+        for (const el of document.getElementsByClassName('update-btn')) {
+            el.addEventListener('click', (e) => {
+                const id = e.target.getAttribute('data-id');
+                let xhr = new XMLHttpRequest();
+                xhr.open('GET', `${API_URL}/author/${id}`);
+                xhr.onload = function() {
+                    if (xhr.status !== 200) {
+                        console.log('error', xhr);
+                    } else {
+                        sendBtn.setAttribute('data-id', id);
+                        const res = JSON.parse(xhr.response);
+                        firstNameInput.value = res.firstName;
+                        lastNameInput.value = res.lastName;
+                        ageInput.value = res.age;
+                    }
+                };
+                xhr.send();
+
+            });
+        }
+    };
+
+    const setActionOnDeleteButtonClick = () => {
+        for (const el of document.getElementsByClassName('delete-btn')) {
+            el.addEventListener('click', (e) => {
+                const id = e.target.getAttribute('data-id');
+                let xhr = new XMLHttpRequest();
+                xhr.open('DELETE', `${API_URL}/author?id=${id}`);
+                xhr.onload = function() {
+                    if (xhr.status !== 200) {
+                        console.log('error', xhr);
+                    } else {
+                        e.target.parentElement.parentElement.outerHTML = '';
+                    }
+                };
+                xhr.send();
+            });
+        }
+    };
+
+    const getAuthorsFromApi = () => {let xhr = new XMLHttpRequest();
+        xhr.open('GET', `${API_URL}/author`);
+        xhr.onload = function() {
+            if (xhr.status !== 200) {
+                console.log('error', xhr);
+            } else {
+                console.log('ok', xhr.response);
+                authorsTable.innerHTM = '';
+                for(const author of JSON.parse(xhr.response)) {
+                    let row = document.createElement('tr');
+                    const imgUrl = author.imageName ? `${API_URL}/photography/${author.imageName}` : 'https://www.petescarsales.com/dist/img/nophoto.jpg';
+                    row.innerHTML = `
+                        <td>${author.id}</td>
+                        <td>
+                            <img src = "${imgUrl}" height="120">
+                        </td>
+                        <td>${author.firstName}</td>
+                        <td>${author.lastName}</td>
+                        <td>${author.age}</td>
+                        <td>
+                        <button class="delete-btn" data-id = "${author.id}">DELETE</button>
+                        <button class="update-btn" data-id = "${author.id}">UPDATE</button>
+                        </td>
+                   `
+                    authorsTable.appendChild(row);
+                }
+                setActionOnDeleteButtonClick();
+                setActionOnUpdateButtonClick();
+            }
+        };
+        xhr.send();
+    };
+
+    sendBtn.addEventListener('click', () => {
+        const author = {
+            firstName : firstNameInput.value,
+            lastName: lastNameInput.value,
+            age: ageInput.value,
+        };
+
+
+        const id = sendBtn.getAttribute('data-id');
+
+        getBase64FromFile(imageInput.files[0])
+            .then(image => author.image = image)
+            .catch(() => alert("Something went wrong with image, try again"))
+            .finally(() => {
+                const method = id ? 'PUT' : 'POST';
+                let xhr = new XMLHttpRequest();
+                xhr.open(method, `${API_URL}/author${id ? '?id='+id : ''}`);
+                xhr.setRequestHeader('Content-type', 'application/json; charset=utf-8');
+                xhr.onload = function() {
+                    if (xhr.status !== 200) {
+                        console.log('error', xhr);
+                    } else {
+                        console.log('ok', xhr.response);
+                        clearAllFields();
+                        getAuthorsFromApi();
+                    }
+                };
+                xhr.send(JSON.stringify(author));
+            });
+    });
+
+    getAuthorsFromApi();
+
+    const clearAllFields = () => {
+        firstNameInput.value = '';
+        lastNameInput.value = '';
+        ageInput.value = '';
+        imageInput.value = '';
+        sendBtn.setAttribute('data-id', '');
+    };
+
+</script>
+</body>
+</html>

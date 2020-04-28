@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Books</title>
+</head>
+<body>
+<select id="author_select"></select>
+<input type = "text" id = "name_input" placeholder="Name">
+<input type = "number" id = "year_input" min = "0" placeholder="Year">
+<input type = "text" id = "genre_input" placeholder="Genre">
+<input type = "number" id = "price_input" min = "0" placeholder="Price">
+<input type = "file" id = "image_input">
+
+<button id="send-btn">Send</button>
+
+<table>
+    <thead>
+   <tr>
+       <th>ID</th>
+       <th>Image</th>
+       <th>Name</th>
+       <th>Year</th>
+       <th>Genre</th>
+       <th>Price</th>
+       <th>Author</th>
+       <th>Actions</th>
+   </tr>
+    </thead>
+    <tbody id = "books_table"></tbody>
+</table>
+
+<script>
+    const getBase64FromFile =(file) => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
+        });
+    };
+
+    const API_URL = 'http://localhost:8080';
+    const nameInput = document.getElementById("name_input");
+    const yearInput = document.getElementById("year_input");
+    const genreInput = document.getElementById("genre_input");
+    const priceInput = document.getElementById("price_input");
+    const imageInput = document.getElementById("image_input");
+    const sendBtn = document.getElementById("send-btn");
+    const authorSelect = document.getElementById("author_select");
+    const booksTable = document.getElementById("books_table");
+
+    const setActionOnUpdateButtonClick = () => {
+        for (const el of document.getElementsByClassName('update-btn')) {
+            el.addEventListener('click', (e) => {
+                const id = e.target.getAttribute('data-id');
+                let xhr = new XMLHttpRequest();
+                xhr.open('GET', `${API_URL}/book/${id}`);
+                xhr.onload = function() {
+                    if (xhr.status !== 200) {
+                        console.log('error', xhr);
+                    } else {
+                        sendBtn.setAttribute('data-id', id);
+                        const res = JSON.parse(xhr.response);
+                        nameInput.value = res.name;
+                        yearInput.value = res.year;
+                        genreInput.value = res.genre;
+                        priceInput.value = res.price;
+                        if (res.author) {
+                            authorSelect.value = res.author.id;
+                        }
+                    }
+                };
+                xhr.send();
+
+            });
+        }
+    };
+
+    const setActionOnDeleteButtonClick = () => {
+        for (const el of document.getElementsByClassName('delete-btn')) {
+            el.addEventListener('click', (e) => {
+                const id = e.target.getAttribute('data-id');
+                let xhr = new XMLHttpRequest();
+                xhr.open('DELETE', `${API_URL}/book?id=${id}`);
+                xhr.onload = function() {
+                    if (xhr.status !== 200) {
+                        console.log('error', xhr);
+                    } else {
+                        e.target.parentElement.parentElement.outerHTML = '';
+                    }
+                };
+                xhr.send();
+            });
+        }
+    };
+
+    const getBooksFromApi = () => {let xhr = new XMLHttpRequest();
+        xhr.open('GET', `${API_URL}/book`);
+        xhr.onload = function() {
+            if (xhr.status !== 200) {
+                console.log('error', xhr);
+            } else {
+                console.log('ok', xhr.response);
+                booksTable.innerHTM = '';
+                for(const book of JSON.parse(xhr.response)) {
+                    let row = document.createElement('tr');
+                    const imgUrl = book.imageName ? `${API_URL}/photography/${book.imageName}` : 'https://www.petescarsales.com/dist/img/nophoto.jpg';
+                   row.innerHTML = `
+                        <td>${book.id}</td>
+                        <td>
+                            <img src = "${imgUrl}" height="120">
+                        </td>
+                        <td>${book.name}</td>
+                        <td>${book.year}</td>
+                        <td>${book.genre}</td>
+                        <td>${book.price}</td>
+                        <td>${book.authorFirstName + " " + book.authorLastName}</td>
+                        <td>
+                        <button class="delete-btn" data-id = "${book.id}">DELETE</button>
+                        <button class="update-btn" data-id = "${book.id}">UPDATE</button>
+                        </td>
+                   `
+                    booksTable.appendChild(row);
+                }
+                setActionOnDeleteButtonClick();
+                setActionOnUpdateButtonClick();
+            }
+        };
+        xhr.send();
+    };
+
+
+
+    let xhr = new XMLHttpRequest();
+    xhr.open('GET', `${API_URL}/author`);
+    xhr.onload = function() {
+        if (xhr.status !== 200) {
+            console.log('error', xhr);
+        } else {
+            console.log('ok', xhr.response);
+            authorSelect.innerHTM = '';
+           for(const author of JSON.parse(xhr.response)) {
+                let option = document.createElement('option');
+                option.setAttribute('value', author.id);
+                option.innerText = author.firstName + " " + author.lastName;
+                authorSelect.appendChild(option);
+           }
+        }
+    };
+    xhr.send();
+
+    sendBtn.addEventListener('click', () => {
+        const book = {
+            name : nameInput.value,
+            year : yearInput.value,
+            genre: genreInput.value,
+            price: priceInput.value,
+            authorId : authorSelect.value,
+        };
+
+
+        const id = sendBtn.getAttribute('data-id');
+
+        getBase64FromFile(imageInput.files[0])
+            .then(image => book.image = image)
+            .catch(() => alert("Something went wrong with image, try again"))
+            .finally(() => {
+                const method = id ? 'PUT' : 'POST';
+                let xhr = new XMLHttpRequest();
+                xhr.open(method, `${API_URL}/book${id ? '?id='+id : ''}`);
+                xhr.setRequestHeader('Content-type', 'application/json; charset=utf-8');
+                xhr.onload = function() {
+                    if (xhr.status !== 200) {
+                        console.log('error', xhr);
+                    } else {
+                        console.log('ok', xhr.response);
+                        clearAllFields();
+                        getBooksFromApi();
+                    }
+                };
+                xhr.send(JSON.stringify(book));
+            });
+    });
+
+   getBooksFromApi();
+
+    const clearAllFields = () => {
+      nameInput.value = '';
+      yearInput.value = '';
+      genreInput.value = '';
+      priceInput.value = '';
+      authorSelect.value = '';
+      imageInput.value = '';
+      sendBtn.setAttribute('data-id', '');
+    };
+
+</script>
+</body>
+</html>
